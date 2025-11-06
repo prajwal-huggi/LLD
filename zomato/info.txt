@@ -1,0 +1,7 @@
+const after function → “I promiiiise I won’t modify the object.”
+
+const before parameter → “I won’t modify your variable.”
+
+& → “I’m taking a reference. No copying.”
+
+Don’t use const double& unless you're doing performance cosplay.
