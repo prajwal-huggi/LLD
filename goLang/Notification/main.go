@@ -14,25 +14,33 @@ type Message struct{
 // Strategy design pattern
 //interface
 type INotifier interface{
-	Send(msg Message)
+	Send(msg Message) error
 }
 
 type Sms struct{}
-func(s Sms) Send(msg Message){
+func(s Sms) Send(msg Message) error{
 	fmt.Println("Message: ", msg.Message," is sent via SMS")
+	return nil
 }
 
 type Gmail struct{}
-func(s Gmail) Send(msg Message){
+func(s Gmail) Send(msg Message) error{
 	fmt.Println("Message: ", msg.Message," is sent via Gmail")
+	return nil
 }
 
 type Logging struct{
 	notifier INotifier
 }
-func(l Logging) Send(msg Message){
+func(l Logging) Send(msg Message) error{
 	fmt.Println("Logged in prometheus")
-	l.notifier.Send(msg)
+	err:= l.notifier.Send(msg)
+
+	if err!= nil{
+		fmt.Println("delivery failed: ", err)
+	}
+
+	return err
 }
 
 // Observer Design Pattern
@@ -57,7 +65,9 @@ func(s Subscriber) update(msg Message){
 	}
 
 	nm:= GetNotificationManager()
-	nm.Send(msg, factory)
+	if err := nm.Send(msg, factory); err != nil {
+		fmt.Println("could not notify", s.Name, ":", err)
+	}
 }
 func (s Subscriber) GetId() string{
 	return s.SubscriberId
@@ -80,12 +90,20 @@ type IObservable interface{
 type Youtuber struct{
 	YoutubeChannel string
 	Name string
+
+	mu sync.RWMutex
 	Subscribers []IObserver
 }
 func(y *Youtuber) add(sub IObserver){
+	y.mu.Lock()
+	defer y.mu.Unlock()
+
 	y.Subscribers= append(y.Subscribers, sub)
 }
 func(y *Youtuber) remove(sub IObserver){
+	y.mu.Lock()
+	defer y.mu.Unlock()
+
 	subs:= y.Subscribers
 	subId:= sub.GetId()
 
@@ -108,6 +126,11 @@ func(y *Youtuber) remove(sub IObserver){
 }
 
 func(y *Youtuber) notify(msg Message){
+	y.mu.Lock()
+	subs := make([]IObserver, len(y.Subscribers))
+	copy(subs, y.Subscribers)
+	y.mu.Unlock()
+	
 	for _, val:= range y.Subscribers{
 		val.update(msg)
 	}
@@ -143,10 +166,10 @@ func GetNotificationManager() *NotificationManager {
     return instance
 }
 
-func (manager *NotificationManager) Send(msg Message, factory INotifierFactory) {
+func (manager *NotificationManager) Send(msg Message, factory INotifierFactory) error{
 	channel := factory.Create()
 	notifier := Logging{notifier: channel}  // local, not manager.notifier
-	notifier.Send(msg)
+	return notifier.Send(msg)
 }
 
 
@@ -165,7 +188,7 @@ func main(){
 		Channel:"gmail",
 	}
 	
-	flyingBeast:= Youtuber{
+	flyingBeast:= &Youtuber{
 		YoutubeChannel:"Flying Beast",
 		Name:"Gaurav",
 	}
