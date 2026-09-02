@@ -19,12 +19,12 @@ type INotifier interface{
 
 type Sms struct{}
 func(s Sms) Send(msg Message){
-	fmt.Println("Message: ", msg," is sent via SMS")
+	fmt.Println("Message: ", msg.Message," is sent via SMS")
 }
 
 type Gmail struct{}
 func(s Gmail) Send(msg Message){
-	fmt.Println("Message: ", msg," is sent via Gmail")
+	fmt.Println("Message: ", msg.Message," is sent via Gmail")
 }
 
 type Logging struct{
@@ -49,12 +49,15 @@ type Subscriber struct{
 }
 func(s Subscriber) update(msg Message){
 	fmt.Println(s.Name, "received:", msg.Message)
-	// I think here the notifcation manager will take place.
 
 	factory:= s.GetFactory()
+	if factory == nil {
+		fmt.Println("unknown channel:", s.Channel)
+		return
+	}
+
 	nm:= GetNotificationManager()
 	nm.Send(msg, factory)
-
 }
 func (s Subscriber) GetId() string{
 	return s.SubscriberId
@@ -131,10 +134,7 @@ var (
     once     sync.Once  // a lock that fires exactly once
 )
 
-type NotificationManager struct{
-	factory INotifierFactory
-	notifier INotifier
-}
+type NotificationManager struct{}
 
 func GetNotificationManager() *NotificationManager {
     once.Do(func() {
@@ -143,10 +143,10 @@ func GetNotificationManager() *NotificationManager {
     return instance
 }
 
-func(manager *NotificationManager) Send(msg Message, factory INotifierFactory){
-	channel:= factory.Create()
-	manager.notifier = Logging{notifier: channel}  // wrap in decorator
-    manager.notifier.Send(msg)                      // log → deliver
+func (manager *NotificationManager) Send(msg Message, factory INotifierFactory) {
+	channel := factory.Create()
+	notifier := Logging{notifier: channel}  // local, not manager.notifier
+	notifier.Send(msg)
 }
 
 
